@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}Evaluations — {{ application.slug }}{% endblock %}
+{% block content %}
+<div class="row" style="justify-content: space-between;">
+  <h1>Evaluations — {{ application.slug }}</h1>
+  <a class="link" href="/admin/ui/applications/{{ application.id }}">&larr; back to application</a>
+</div>
+
+{% if not application.judge_llm_provider %}
+<div class="flash warning">
+  No evaluation judge LLM configured — the "native" framework (precision@k/recall@k/MRR)
+  works without one, but "ragas" and "deepeval" need a judge LLM.
+  <a class="link" href="/admin/ui/applications/{{ application.id }}/edit">Configure one</a>.
+</div>
+{% endif %}
+
+<div class="card">
+  <h2 style="margin-top:0;">Run a new evaluation</h2>
+  <form method="post" action="/admin/ui/applications/{{ application.id }}/evaluations">
+    <label>Frameworks</label>
+    <div class="row" style="gap: 20px;">
+      <label style="display:inline-flex; align-items:center; gap:6px; font-weight:400;">
+        <input type="checkbox" name="frameworks" value="native" checked style="width:auto;"> native
+      </label>
+      <label style="display:inline-flex; align-items:center; gap:6px; font-weight:400;">
+        <input type="checkbox" name="frameworks" value="ragas" style="width:auto;"> ragas
+      </label>
+      <label style="display:inline-flex; align-items:center; gap:6px; font-weight:400;">
+        <input type="checkbox" name="frameworks" value="deepeval" style="width:auto;"> deepeval
+      </label>
+    </div>
+
+    <label for="cases_json">Test cases (JSON array)</label>
+    <textarea id="cases_json" name="cases_json" rows="10" style="font-family: monospace; font-size: 13px;" required>[
+  {
+    "query": "example query",
+    "namespace": "notes",
+    "top_k": 5,
+    "expected_memory_ids": [],
+    "expected_context": "",
+    "generated_answer": ""
+  }
+]</textarea>
+    <p class="muted">Each case needs at minimum <code>query</code> and <code>namespace</code>. <code>expected_memory_ids</code> enables the native framework's metrics; <code>expected_context</code>/<code>generated_answer</code> enable ragas/deepeval's metrics — see <a class="link" href="#" onclick="return false;">docs/15-evaluation-frameworks.md</a>.</p>
+
+    <button type="submit">Run evaluation</button>
+  </form>
+</div>
+
+<div class="card">
+  <h2 style="margin-top:0;">Past runs</h2>
+  <table>
+    <thead><tr><th>Started</th><th>Frameworks</th><th>Status</th><th></th></tr></thead>
+    <tbody>
+      {% for run in runs %}
+      <tr>
+        <td class="muted">{{ run.created_at }}</td>
+        <td>{{ run.frameworks | join(', ') }}</td>
+        <td>
+          {% set cls = 'active' if run.status == 'completed' else ('inactive' if run.status == 'failed' else '') %}
+          <span class="badge {{ cls }}">{{ run.status }}</span>
+        </td>
+        <td><a class="link" href="/admin/ui/applications/{{ application.id }}/evaluations/{{ run.id }}">View report</a></td>
+      </tr>
+      {% else %}
+      <tr><td colspan="4" class="muted">No evaluation runs yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

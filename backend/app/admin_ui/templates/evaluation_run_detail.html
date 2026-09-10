@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Evaluation run — {{ application.slug }}{% endblock %}
+{% block content %}
+<div class="row" style="justify-content: space-between;">
+  <h1>Evaluation run</h1>
+  <a class="link" href="/admin/ui/applications/{{ application.id }}/evaluations">&larr; back to evaluations</a>
+</div>
+
+<p class="muted">
+  Started {{ run.created_at }} &middot; frameworks: {{ run.frameworks | join(', ') }} &middot;
+  <span class="badge {{ 'active' if run.status == 'completed' else ('inactive' if run.status == 'failed' else '') }}">{{ run.status }}</span>
+</p>
+
+{% if run.status in ('pending', 'running') %}
+<div class="flash warning">
+  Still {{ run.status }} — judge-LLM-based frameworks (ragas, deepeval) can take a while,
+  especially with a small local model. <a class="link" href="">Refresh</a> to check again.
+</div>
+{% elif run.status == 'failed' %}
+<div class="flash error">Run failed: {{ run.error }}</div>
+{% endif %}
+
+{% if run.report %}
+{% for case in run.report.cases %}
+<div class="card">
+  <h2 style="margin-top:0;">{{ case.query }}</h2>
+
+  <h3 style="font-size:14px; color:#555;">Retrieved</h3>
+  <table>
+    <thead><tr><th>Score</th><th>Content</th></tr></thead>
+    <tbody>
+      {% for r in case.retrieved %}
+      <tr><td>{{ '%.4f'|format(r.score) }}</td><td>{{ r.content }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h3 style="font-size:14px; color:#555; margin-top:16px;">Framework results</h3>
+  <table>
+    <thead><tr><th>Framework</th><th>Metrics</th></tr></thead>
+    <tbody>
+      {% for fw, result in case.results.items() %}
+      <tr>
+        <td><strong>{{ fw }}</strong></td>
+        <td>
+          {% if result.skipped %}
+            <span class="muted">skipped — {{ result.skipped }}</span>
+          {% elif result.error %}
+            <span style="color:#991b1b;">error — {{ result.error }}</span>
+          {% else %}
+            {% for metric, score in result.items() %}
+              <span class="badge" style="background:#eef2ff; color:#3730a3; margin-right:6px;">{{ metric }}: {{ score }}</span>
+            {% endfor %}
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endfor %}
+{% endif %}
+{% endblock %}

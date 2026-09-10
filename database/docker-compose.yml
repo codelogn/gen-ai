@@ -1,0 +1,53 @@
+# Dockerized Postgres+pgvector and Qdrant — an ALTERNATIVE to the native
+# systemd-managed services (backend/scripts/setup.sh, install_qdrant.sh)
+# that actually run gen-ai today. This is not a migration of that setup;
+# it's an optional convenience for a fresh dev machine without sudo,
+# testing, or portability. See ./README.md before using this to back a
+# real gen-ai instance.
+#
+# No sqlite-vec service here, deliberately — it's a library loaded
+# against a local file, created automatically per-application. There's
+# nothing to run for it (see ./README.md).
+#
+# Ports default to 5433/6343/6344, not the standard 5432/6333/6334,
+# specifically so this can run alongside the native services without a
+# port conflict.
+
+name: gen-ai-database
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-genai}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-genai_dev}
+    ports:
+      - "${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-genai}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  qdrant:
+    image: qdrant/qdrant:v1.19.0
+    ports:
+      - "${QDRANT_HTTP_PORT:-6343}:6333"
+      - "${QDRANT_GRPC_PORT:-6344}:6334"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    healthcheck:
+      # The official qdrant/qdrant image has no curl/wget — bash's
+      # built-in /dev/tcp is the only zero-dependency way to check the
+      # port is accepting connections from inside this specific image.
+      test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/127.0.0.1/6333' || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+  qdrant_data:

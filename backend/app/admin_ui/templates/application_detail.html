@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}{{ application.slug }} — gen-ai admin{% endblock %}
+{% block content %}
+<div class="row" style="justify-content: space-between;">
+  <h1>{{ application.display_name }}</h1>
+  <div>
+    <a class="btn secondary" href="/admin/ui/applications/{{ application.id }}/edit">Edit</a>
+    <a class="btn secondary" href="/admin/ui/applications/{{ application.id }}/logs">Logs &amp; usage</a>
+    <a class="btn secondary" href="/admin/ui/applications/{{ application.id }}/evaluations">Evaluations</a>
+  </div>
+</div>
+<p class="muted">Slug: <code>{{ application.slug }}</code> &middot; Status:
+  <span class="badge {{ 'active' if application.is_active else 'inactive' }}">{{ 'active' if application.is_active else 'inactive' }}</span>
+</p>
+
+<div class="card">
+  <h2 style="margin-top:0;">Configuration</h2>
+  <table>
+    <tr><th>Vector backend</th><td>{{ application.vector_backend }} (generation {{ application.vector_backend_generation }})</td></tr>
+    <tr><th>Retrieval strategy</th><td>{{ application.retrieval_strategy }}</td></tr>
+    <tr><th>Embedding provider</th><td>{{ application.embedding_provider }} / {{ application.embedding_model }}</td></tr>
+    <tr><th>Embedding dimension</th><td>{{ application.embedding_dimension or 'not yet detected (set on first write)' }}</td></tr>
+    <tr><th>Evaluation judge LLM</th><td>{% if application.judge_llm_provider %}{{ application.judge_llm_provider }} / {{ application.judge_llm_model }}{% else %}<span class="muted">not configured — needed for ragas/deepeval evaluations</span>{% endif %}</td></tr>
+    <tr><th>Rate limit</th><td>{{ application.rate_limit_per_minute or 'service default' }} req/min</td></tr>
+  </table>
+</div>
+
+<div class="card">
+  <div class="row" style="justify-content: space-between;">
+    <h2 style="margin-top:0;">API keys</h2>
+  </div>
+
+  {% if revealed_key %}
+  <div class="flash warning">
+    New key created — this is the only time the full value is shown. Copy it now.
+    <div class="key-reveal">{{ revealed_key }}</div>
+  </div>
+  {% endif %}
+
+  <table>
+    <thead><tr><th>Label</th><th>Key</th><th>Status</th><th>Last used</th><th></th></tr></thead>
+    <tbody>
+      {% for key in api_keys %}
+      <tr>
+        <td>{{ key.label }}</td>
+        <td><code>{{ key.key_prefix }}...{{ key.last_four }}</code></td>
+        <td><span class="badge {{ 'active' if key.is_active else 'inactive' }}">{{ 'active' if key.is_active else 'revoked' }}</span></td>
+        <td class="muted">{{ key.last_used_at or 'never' }}</td>
+        <td>
+          {% if key.is_active %}
+          <form method="post" action="/admin/ui/applications/{{ application.id }}/api-keys/{{ key.id }}/revoke" style="margin:0;">
+            <button type="submit" class="danger" style="margin:0; padding: 4px 10px; font-size: 12px;">Revoke</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5" class="muted">No API keys issued yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <form method="post" action="/admin/ui/applications/{{ application.id }}/api-keys" class="row" style="margin-top: 14px;">
+    <input type="text" name="label" placeholder="Key label (e.g. 'production')" required style="flex:1;">
+    <button type="submit" style="margin-top:0;">Issue new key</button>
+  </form>
+</div>
+{% endblock %}

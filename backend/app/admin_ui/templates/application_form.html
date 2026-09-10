@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Edit' if application else 'New' }} application — gen-ai admin{% endblock %}
+{% block content %}
+<h1>{{ 'Edit application' if application else 'New application' }}</h1>
+{% if application %}<p class="muted">{{ application.slug }}</p>{% endif %}
+
+<div class="card">
+  <form method="post" action="{{ '/admin/ui/applications/' + application.id|string + '/edit' if application else '/admin/ui/applications/new' }}">
+
+    {% if not application %}
+    <label for="slug">Slug</label>
+    <input type="text" id="slug" name="slug" pattern="^[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?$" required placeholder="e.g. demo-chat">
+    {% endif %}
+
+    <label for="display_name">Display name</label>
+    <input type="text" id="display_name" name="display_name" required value="{{ application.display_name if application else '' }}">
+
+    <h2>Storage backend</h2>
+    <label for="vector_backend">Vector backend</label>
+    <select id="vector_backend" name="vector_backend">
+      {% for opt in ["sqlite_vec", "pgvector", "qdrant"] %}
+      <option value="{{ opt }}" {{ 'selected' if application and application.vector_backend == opt }}>{{ opt }}</option>
+      {% endfor %}
+    </select>
+    {% if application %}
+    <p class="muted">Changing this provisions a fresh, empty store — existing data is retained but excluded from search until re-upserted.</p>
+    {% endif %}
+
+    <h2>Retrieval strategy</h2>
+    <label for="retrieval_strategy">Retrieval strategy</label>
+    <select id="retrieval_strategy" name="retrieval_strategy" onchange="toggleStrategyFields()">
+      {% for opt in ["native", "langchain", "reranked"] %}
+      <option value="{{ opt }}" {{ 'selected' if application and application.retrieval_strategy == opt }}>{{ opt }}</option>
+      {% endfor %}
+    </select>
+
+    <div id="langchain-fields" class="conditional-field">
+      <label for="hybrid_keyword_weight">Hybrid keyword weight (0.0–1.0)</label>
+      <input type="number" id="hybrid_keyword_weight" name="hybrid_keyword_weight" min="0" max="1" step="0.05"
+             value="{{ (application.retrieval_strategy_config or {}).get('hybrid_keyword_weight', 0.3) if application else 0.3 }}">
+      <p class="muted">Weight given to exact keyword (BM25) matches vs. vector similarity when combining results.</p>
+    </div>
+
+    <div id="reranked-fields" class="conditional-field">
+      <label for="rerank_model">Cross-encoder model</label>
+      <select id="rerank_model" name="rerank_model">
+        {% for opt in ["cross-encoder/ms-marco-MiniLM-L-6-v2", "cross-encoder/ms-marco-MiniLM-L-12-v2"] %}
+        <option value="{{ opt }}" {{ 'selected' if application and (application.retrieval_strategy_config or {}).get('rerank_model') == opt }}>{{ opt }}</option>
+        {% endfor %}
+      </select>
+      <label for="rerank_candidate_pool">Candidate pool size (blank = auto: top_k × 4, min 20, max 100)</label>
+      <input type="number" id="rerank_candidate_pool" name="rerank_candidate_pool" min="1" max="100"
+             value="{{ (application.retrieval_strategy_config or {}).get('rerank_candidate_pool', '') if application else '' }}">
+      <p class="muted">Fetches this many candidates by vector similarity, then re-scores them with a cross-encoder before returning the top results — more accurate than cosine similarity alone, at extra CPU cost per search. Falls back to plain vector ordering automatically if the model can't be loaded.</p>
+    </div>
+
+    <h2>Embedding provider</h2>
+    <label for="embedding_provider">Embedding provider</label>
+    <select id="embedding_provider" name="embedding_provider" onchange="toggleProviderFields()">
+      {% for opt in ["ollama", "openai"] %}
+      <option value="{{ opt }}" {{ 'selected' if application and application.embedding_provider == opt }}>{{ opt }}</option>
+      {% endfor %}
+    </select>
+
+    <label for="embedding_model">Embedding model</label>
+    <input type="text" id="embedding_model" name="embedding_model" value="{{ application.embedding_model if application else 'nomic-embed-text' }}">
+
+    <div id="ollama-fields" class="conditional-field">
+      <label for="embedding_base_url">Ollama base URL (optional)</label>
+      <input type="text" id="embedding_base_url" name="embedding_base_url" placeholder="http://localhost:11434"
+             value="{{ application.embedding_base_url if application else '' }}">
+    </div>
+
+    <div id="openai-fields" class="conditional-field">
+      <label for="embedding_api_key">OpenAI API key {{ '(leave blank to keep existing)' if application else '' }}</label>
+      <input type="password" id="embedding_api_key" name="embedding_api_key" placeholder="sk-...">
+    </div>
+
+    <h2>Evaluation judge LLM</h2>
+    <p class="muted">Only needed to run the "ragas"/"deepeval" evaluation frameworks — the "native" framework needs no judge LLM at all. See docs/15-evaluation-frameworks.md.</p>
+    <label for="judge_llm_provider">Judge LLM provider</label>
+    <select id="judge_llm_provider" name="judge_llm_provider" onchange="toggleJudgeFields()">
+      <option value="" {{ 'selected' if application and not application.judge_llm_provider }}>(not configured)</option>
+      {% for opt in ["ollama", "openai"] %}
+      <option value="{{ opt }}" {{ 'selected' if application and application.judge_llm_provider == opt }}>{{ opt }}</option>
+      {% endfor %}
+    </select>
+
+    <label for="judge_llm_model">Judge LLM model (must be chat-capable, not an embedding model)</label>
+    <input type="text" id="judge_llm_model" name="judge_llm_model" placeholder="e.g. llama3.2"
+           value="{{ application.judge_llm_model if application and application.judge_llm_model else '' }}">
+
+    <div id="judge-ollama-fields" class="conditional-field">
+      <label for="judge_llm_base_url">Ollama base URL (optional)</label>
+      <input type="text" id="judge_llm_base_url" name="judge_llm_base_url" placeholder="http://localhost:11434"
+             value="{{ application.judge_llm_base_url if application else '' }}">
+    </div>
+
+    <div id="judge-openai-fields" class="conditional-field">
+      <label for="judge_llm_api_key">OpenAI API key {{ '(leave blank to keep existing)' if application else '' }}</label>
+      <input type="password" id="judge_llm_api_key" name="judge_llm_api_key" placeholder="sk-...">
+    </div>
+
+    <h2>Rate limiting</h2>
+    <label for="rate_limit_per_minute">Requests per minute (optional — blank uses the service default)</label>
+    <input type="number" id="rate_limit_per_minute" name="rate_limit_per_minute" min="1"
+           value="{{ application.rate_limit_per_minute if application and application.rate_limit_per_minute else '' }}">
+
+    <button type="submit">{{ 'Save changes' if application else 'Create application' }}</button>
+    <a class="btn secondary" href="{{ '/admin/ui/applications/' + application.id|string if application else '/admin/ui/applications' }}">Cancel</a>
+  </form>
+</div>
+
+<script>
+  function toggleStrategyFields() {
+    var strategy = document.getElementById('retrieval_strategy').value;
+    document.getElementById('langchain-fields').classList.toggle('visible', strategy === 'langchain');
+    document.getElementById('reranked-fields').classList.toggle('visible', strategy === 'reranked');
+  }
+  function toggleProviderFields() {
+    var provider = document.getElementById('embedding_provider').value;
+    document.getElementById('ollama-fields').classList.toggle('visible', provider === 'ollama');
+    document.getElementById('openai-fields').classList.toggle('visible', provider === 'openai');
+  }
+  function toggleJudgeFields() {
+    var provider = document.getElementById('judge_llm_provider').value;
+    document.getElementById('judge-ollama-fields').classList.toggle('visible', provider === 'ollama');
+    document.getElementById('judge-openai-fields').classList.toggle('visible', provider === 'openai');
+  }
+  toggleStrategyFields();
+  toggleProviderFields();
+  toggleJudgeFields();
+</script>
+{% endblock %}

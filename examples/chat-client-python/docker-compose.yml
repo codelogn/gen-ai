@@ -1,0 +1,41 @@
+# Dockerized example client — deliberately does NOT bundle the gen-ai
+# service, Postgres, or Qdrant. gen-ai is expected to already be running
+# (as its own systemd-managed process, per gen-ai's own docs) and this
+# compose file connects to it purely over HTTP via GENAI_API_URL. This is
+# the honest setup: this example is a REST *consumer*, exactly like any
+# other client would be, not a component of the system under test.
+#
+# The backend uses `network_mode: host` rather than the more commonly
+# documented `host.docker.internal` — verified directly during
+# development that host.docker.internal CANNOT reach a service bound to
+# 127.0.0.1 only (Linux doesn't route loopback-bound traffic across
+# network-namespace boundaries, even via the Docker bridge gateway).
+# gen-ai and Ollama are both deliberately bound to 127.0.0.1 for security
+# (see gen-ai's own docs/07-auth-and-api-keys.md and 10-latest-practices-checklist.md)
+# — host networking for this one container lets it reach them as
+# 127.0.0.1 directly, with no change to gen-ai's or Ollama's security
+# posture. The tradeoff: host networking means the "ports:" mapping below
+# doesn't apply to the backend — it binds directly to host port 9000 as
+# configured in its own Dockerfile CMD.
+
+services:
+  backend:
+    build: ./backend
+    network_mode: host
+    environment:
+      GENAI_API_URL: ${GENAI_API_URL:-http://127.0.0.1:8020}
+      GENAI_API_KEY: ${GENAI_API_KEY:?Set GENAI_API_KEY — issue one via the gen-ai admin panel}
+      CHAT_LLM_PROVIDER: ${CHAT_LLM_PROVIDER:-ollama}
+      CHAT_LLM_MODEL: ${CHAT_LLM_MODEL:-llama3.2}
+      CHAT_LLM_BASE_URL: ${CHAT_LLM_BASE_URL:-http://127.0.0.1:11434}
+      CHAT_LLM_API_KEY: ${CHAT_LLM_API_KEY:-}
+    volumes:
+      - chat_client_data:/app/data
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "8080:8080"
+
+volumes:
+  chat_client_data:

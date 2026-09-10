@@ -1,0 +1,73 @@
+name: gen-ai-chat-client-java
+
+# Networking note (read this before changing ports): `backend` needs
+# network_mode: host to reach gen-ai and Ollama at 127.0.0.1 — both are
+# loopback-bound, and host.docker.internal cannot reach a loopback-bound
+# service on Linux (the same constraint the Python sibling's own
+# docker-compose.yml already documents). network_mode: host is exclusive
+# of joining any other compose network, so `backend` CANNOT resolve a
+# `postgres` service-name via Docker's embedded DNS. Instead, postgres
+# publishes its port to the host loopback interface — exactly like
+# gen-ai/Ollama already are — and the host-networked backend reaches it
+# the same way it reaches everything else: via 127.0.0.1:<port>. See
+# ../../database/docker-compose.yml for the same published-port idiom
+# used for the identical reason (avoiding a port collision with the
+# standard 5432), applied here for the added reason that the consumer is
+# host-networked, not just to dodge a collision.
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-chatclient}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-chatclient_java}
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5434}:5432"
+    volumes:
+      - chat_client_java_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-chatclient}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: ./backend
+    network_mode: host
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SERVER_PORT: 9001
+      GENAI_API_URL: ${GENAI_API_URL:-http://127.0.0.1:8020}
+      GENAI_API_KEY: ${GENAI_API_KEY:?Set GENAI_API_KEY — run scripts/register_app.sh first}
+      CHAT_LLM_PROVIDER: ${CHAT_LLM_PROVIDER:-ollama}
+      CHAT_LLM_MODEL: ${CHAT_LLM_MODEL:-llama3.2}
+      CHAT_LLM_BASE_URL: ${CHAT_LLM_BASE_URL:-http://127.0.0.1:11434}
+      # A blank/unset value here must NOT become an empty string in the
+      # container env — Spring's ${VAR:default} placeholder syntax only
+      # falls back to `default` when the property is entirely ABSENT, not
+      # when it's present-but-empty, so an empty string here would defeat
+      # application.yml's own "not-configured" placeholder default and
+      # crash Spring AI's OpenAI autoconfiguration at startup (learned by
+      # actually hitting this, not by inspection).
+      CHAT_LLM_API_KEY: ${CHAT_LLM_API_KEY:-not-configured}
+      RECENT_MESSAGES_WINDOW: ${RECENT_MESSAGES_WINDOW:-6}
+      SEMANTIC_SEARCH_TOP_K: ${SEMANTIC_SEARCH_TOP_K:-4}
+      CHUNK_SIZE_CHARS: ${CHUNK_SIZE_CHARS:-500}
+      CHUNK_OVERLAP_CHARS: ${CHUNK_OVERLAP_CHARS:-50}
+      # 127.0.0.1, not a "postgres" service name — see the networking note above.
+      SPRING_DATASOURCE_URL: jdbc:postgresql://127.0.0.1:${POSTGRES_PORT:-5434}/${POSTGRES_DB:-chatclient_java}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-chatclient}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_BASE: http://localhost:9001
+    ports:
+      - "8081:8081"
+
+volumes:
+  chat_client_java_pg:

@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Logs — {{ application.slug }}{% endblock %}
+{% block content %}
+<div class="row" style="justify-content: space-between;">
+  <h1>Logs &amp; usage — {{ application.slug }}</h1>
+  <a class="link" href="/admin/ui/applications/{{ application.id }}">&larr; back to application</a>
+</div>
+
+<div class="card">
+  <h2 style="margin-top:0;">Usage summary (last 24h)</h2>
+  <table>
+    <tr><th>Total requests</th><td>{{ usage.total_requests }}</td></tr>
+    <tr><th>Errors</th><td>{{ usage.error_count }} ({{ (usage.error_rate * 100)|round(1) }}%)</td></tr>
+    <tr><th>Avg latency</th><td>{{ usage.avg_latency_ms }} ms</td></tr>
+    <tr><th>p95 latency</th><td>{{ usage.p95_latency_ms }} ms</td></tr>
+  </table>
+</div>
+
+<div class="card">
+  <h2 style="margin-top:0;">Recent requests</h2>
+  <table>
+    <thead><tr><th>Time</th><th>Method</th><th>Path</th><th>Status</th><th>Latency</th><th>Strategy</th><th>Backend</th></tr></thead>
+    <tbody>
+      {% for log in logs %}
+      <tr>
+        <td class="muted">{{ log.created_at }}</td>
+        <td>{{ log.method }}</td>
+        <td><code>{{ log.path }}</code></td>
+        <td>
+          {% set cls = 'status-2xx' if log.status_code < 300 else ('status-4xx' if log.status_code < 500 else 'status-5xx') %}
+          <span class="badge {{ cls }}">{{ log.status_code }}</span>
+        </td>
+        <td>{{ log.latency_ms }} ms</td>
+        <td>{{ log.retrieval_strategy or '-' }}</td>
+        <td>{{ log.vector_backend or '-' }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7" class="muted">No requests logged yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

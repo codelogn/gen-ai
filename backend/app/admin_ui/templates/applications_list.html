@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Applications — gen-ai admin{% endblock %}
+{% block content %}
+<div class="row" style="justify-content: space-between;">
+  <h1>Applications</h1>
+  <a class="btn" href="/admin/ui/applications/new">+ New application</a>
+</div>
+<table>
+  <thead>
+    <tr><th>Slug</th><th>Display name</th><th>Vector backend</th><th>Retrieval strategy</th><th>Embedding provider</th><th>Status</th></tr>
+  </thead>
+  <tbody>
+    {% for app in applications %}
+    <tr>
+      <td><a class="link" href="/admin/ui/applications/{{ app.id }}">{{ app.slug }}</a></td>
+      <td>{{ app.display_name }}</td>
+      <td>{{ app.vector_backend }}</td>
+      <td>{{ app.retrieval_strategy }}</td>
+      <td>{{ app.embedding_provider }}</td>
+      <td><span class="badge {{ 'active' if app.is_active else 'inactive' }}">{{ 'active' if app.is_active else 'inactive' }}</span></td>
+    </tr>
+    {% else %}
+    <tr><td colspan="6" class="muted">No applications registered yet.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

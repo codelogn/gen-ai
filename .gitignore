@@ -1,0 +1,17 @@
+backend/venv/
+backend/.env
+backend/data/
+backend/__pycache__/
+backend/**/__pycache__/
+*.pyc
+.DS_Store
+examples/chat-client-python/backend/venv/
+examples/chat-client-python/backend/__pycache__/
+examples/chat-client-python/backend/.env
+examples/chat-client-python/backend/data/
+examples/chat-client-python/.env
+examples/chat-client-java/backend/target/
+examples/chat-client-java/.env
+examples/chat-client-java/frontend/node_modules/
+examples/chat-client-java/frontend/dist/
+database/.env

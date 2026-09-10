@@ -1,0 +1,57 @@
+# Web framework
+fastapi==0.115.6
+uvicorn[standard]==0.32.1
+
+# Database
+sqlalchemy[asyncio]==2.0.36
+asyncpg==0.30.0
+alembic==1.14.0
+
+# Auth
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+bcrypt==4.2.1
+
+# Settings / validation
+pydantic==2.11.7
+pydantic-settings==2.10.1
+email-validator==2.2.0
+
+# Secrets
+cryptography==44.0.0
+
+# Embeddings / retrieval
+httpx==0.28.1
+numpy==2.2.0
+sqlite-vec==0.1.6
+# Pinned to 0.4.1, not the newer 0.4.2 — 0.4.2 removed the
+# langchain_community.chat_models.vertexai submodule that ragas (as of
+# 0.3.x through 0.4.3, checked directly) imports unconditionally at
+# module load time. Confirmed by downloading and inspecting each wheel's
+# contents directly. Revisit if ragas ships a fix that drops this import.
+langchain-community==0.4.1
+langchain-classic==1.0.8
+rank_bm25==0.2.2
+
+# Qdrant client (used by QdrantAdapter, Phase 4)
+qdrant-client==1.12.1
+
+# Templating for the admin UI
+jinja2==3.1.4
+python-multipart==0.0.19
+
+# Evaluation frameworks (judge-LLM based — see app/modules/evaluation/)
+langchain-ollama==1.1.0
+langchain-openai==1.6.0
+ragas==0.4.3
+deepeval==4.2.0
+
+# Cross-encoder reranking (RerankedRetrievalStrategy — see
+# app/modules/retrieval/reranked_strategy.py). First local-ML-inference
+# dependency in this service — everything else calls an HTTP API.
+# CPU-only wheel pinned explicitly: without --extra-index-url, a plain
+# `pip install torch` on Linux resolves CUDA runtime packages (multiple
+# GB) for a process that only ever runs CrossEncoder.predict() on CPU.
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.5.1+cpu
+sentence-transformers==3.3.1
